@@ -133,7 +133,7 @@ def fetch_data(region_name, url , conn):
 
 
 def main():
-    # in development
+    # in develop
     try:
         conn = psycopg2.connect(
             host=DB_ENDPOINT,
