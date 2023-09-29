@@ -23,18 +23,67 @@ REGION_URLS = {
     ["(Zurich)" , the_base_url.format(region="Zurich", timestamp='1695336817871')],
 }
 
-def execute_sql(conn, sql, parameters=[]):
+def convert(url, region_name):
+    response = requests.get(url)
+    data_info = response.json()
+
+    data = data_info.get("regions", {})
+    data = data['EU (Frankfurt)']
+    
+    if response.status_code == 200:
+        instances = []
+        for instance_name, instance_attributes in data.items():
+            instance = {
+                'Instance Name': instance_name,
+                'Rate Code': instance_attributes.get('rateCode', ''),
+                'Price': instance_attributes.get('price', ''),
+                'Location': instance_attributes.get('Location', ''),
+                'Instance Family': instance_attributes.get('Instance Family', ''),
+                'vCPU': instance_attributes.get('vCPU', ''),
+                'Memory': instance_attributes.get('Memory', ''),
+                'Storage': instance_attributes.get('Storage', ''),
+                'Network Performance': instance_attributes.get('Network Performance', ''),
+                'Operating System': instance_attributes.get('Operating System', ''),
+                'Pre Installed S/W': instance_attributes.get('Pre Installed S/W', ''),
+                'License Model': instance_attributes.get('License Model', ''),
+            }
+            instances.append(instance)
+
+        return instances
+    else:
+        return None
+
+
+def insert_data(sql, conn, parameters=[]):
     cur = conn.cursor()
     cur.execute(sql, parameters)
     conn.commit()
+    cur.close()
+
+def select_data(sql, conn, parameters=[]):
+    cur = conn.cursor()
+    cur.execute(sql, parameters)
+    result = cur.fetchone()
+    if result:
+        if sql.startswith("SELECT region_id"):
+            parameters["region_id"] = result[0]
+        elif sql.startswith("SELECT operating_system_id"):
+            # we want the last element in the tuple
+            parameters["operating_system_id"] = result[0]
+        elif sql.startswith("SELECT vcpu_id"):
+            parameters["vcpu_id"] = result[0]
+        elif sql.startswith("SELECT instance_id"):
+            parameters["instance_id"] = result[0]
+
+    conn.commit()
+    
     cur.close()
 
 def save_data(instance_name, instance_attributes, region_name, conn):
     # Extract data from instance_attributes
     memory = float(instance_attributes.get('Memory', '').replace(' GiB', ''))
     storage = instance_attributes.get('Storage', '')
-    network_performance = float(instance_attributes.get(
-        'Network Performance', '').replace(' Gigabit', ''))
+    network_performance = instance_attributes.get('Network Performance', '')
     operating_system_name = instance_attributes.get('Operating System', '')
     vcpu_cores_count = int(instance_attributes.get('vCPU', ''))
     price = float(instance_attributes.get('Price', '').replace('$', ''))
@@ -47,38 +96,38 @@ def save_data(instance_name, instance_attributes, region_name, conn):
         "memory": memory,
         "storage": storage,
         "network_performance": network_performance,
-        "price": price
+        "price": price,
+        "region_id": None,
+        "operating_system_id": None,
+        "vcpu_id": None,
+        "instance_id": None
     }
 
     sql_statements = {
-        "insert_region_sql": "INSERT INTO regions (region_long_name) VALUES (%s)",
-        "insert_os_sql": "INSERT INTO operating_systems (operating_system_name) VALUES (%s)",
-        "insert_vcpu_sql": "INSERT INTO vcpu_cores (core_count) VALUES (%s)",
-        "select_region_sql": "SELECT region_id FROM regions WHERE region_long_name = %s",
-        "select_os_sql": "SELECT operating_system_id FROM operating_systems WHERE operating_system_name = %s",
-        "select_vcpu_sql": "SELECT vcpu_id FROM vcpu_cores WHERE core_count = %s",
-        "insert_instance_sql": "INSERT INTO ec2_instances (vcpu_id, memory, storage, network_performance, operating_system_id, instance_name) VALUES (%s, %s, %s, %s, %s, %s)",
-        "select_instance_sql": "SELECT instance_id FROM ec2_instances WHERE instance_name = %s",
-        "insert_region_instance_sql": "INSERT INTO region_instances (region_id, instance_id, price_per_hour) VALUES (%s, %s, %s)"
+        "insert_region_sql": "INSERT INTO regions (region_long_name) VALUES (:region_name)",
+        "insert_os_sql": "INSERT INTO operating_systems (operating_system_name) VALUES (:os_name)",
+        "insert_vcpu_sql": "INSERT INTO vcpu_cores (core_count) VALUES (:core_count)",
+        "select_region_sql": "SELECT region_id FROM regions WHERE region_long_name = :region_name",
+        "select_os_sql": "SELECT operating_system_id FROM operating_systems WHERE operating_system_name = :os_name ORDER BY operating_system_id DESC LIMIT 1",
+        "select_vcpu_sql": "SELECT vcpu_id FROM vcpu_cores WHERE core_count = :core_count",
+        "insert_instance_sql": "INSERT INTO ec2_instances (vcpu_id, memory, storage, network_performance, operating_system_id, instance_name) VALUES (:vcpu_id, :memory, :storage, :network_performance, :operating_system_id, :instance_name)",
+        "select_instance_sql": "SELECT instance_id FROM ec2_instances WHERE instance_name = :instance_name",
+        "insert_region_instance_sql": "INSERT INTO region_instances (region_id, instance_id, price_per_hour) VALUES (:region_id, :instance_id, :price)"
     }
 
-    for sql_statement in sql_statements.values():
-        execute_sql(conn, sql_statement, parameters.values())
+    for sql_key, sql_query in sql_statements.items():
+        if sql_key.startswith("insert"):
+            insert_data(sql_query, conn, parameters)
+        elif sql_key.startswith("select"):
+            select_data(sql_query, conn, parameters)
 
 
-def fetch_data(region_name, url, conn):
-    response = requests.get(url)
-    if response.status_code == 200:
-        data_info = response.json()
-        region_data = data_info['regions'].get(region_name, {})
-        instances = []
-        for instance_name, instance_attributes in region_data.items():
-            # Process and insert data into the database
-            save_data(instance_name, instance_attributes, region_name, conn)
-            instances.append(instance_name)
-            break
+def fetch_data(region_name, url , conn):
+    data = convert(url, region_name)
 
-        return instances
+    if data:
+        for instance in data:
+            save_data(instance['Instance Name'], instance, region_name , conn)
     else:
         return None
 
@@ -93,10 +142,8 @@ def main():
             password=DB_PASSWORD
         )
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(fetch_data, region_name, url, conn) for region_name, url in REGION_URLS.items()]
-
-        concurrent.futures.wait(futures)
+        for region_name, url in REGION_URLS:
+            fetch_data(region_name, url, conn)
 
         conn.close()
 
