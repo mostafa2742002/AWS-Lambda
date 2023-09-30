@@ -1,6 +1,7 @@
-import requests
-import psycopg2
+import json
 import os
+import psycopg2
+import requests
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -12,52 +13,23 @@ DB_PORT = os.getenv("DB_PORT")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 
-# Constants for database connection and URLs
-DB_NAME = 'ec2_instances'
-DB_ENDPOINT = 'free-tier-database.c5x2u38ouo1m.eu-north-1.rds.amazonaws.com'
-DB_PORT = 5432
-DB_USER = 'admin'
-DB_PASSWORD = 'awsproject123'
+with open('urls_and_table.json', 'r+') as f:
+    tablesitems = json.load(f)
 
-# Define URL templates for different regions
-the_base_url = "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/EU%20{region}/Linux/index.json?timestamp={timestamp}"
-REGION_URLS = {
-    ["(Frankfurt)", the_base_url.format(region="Frankfurt", timestamp='1695336606682')],
-    ["(Ireland)", the_base_url.format(region="Ireland", timestamp='1695336640824')],
-    ["(London)", the_base_url.format(region="London", timestamp='1695336671834')],
-    ["(Milan)", the_base_url.format(region="Milan", timestamp='1695336709113')],
-    ["(Paris)", the_base_url.format(region="Paris", timestamp='1695336734334')],
-    ["(Spain)", the_base_url.format(region="Spain", timestamp='1695336756525')],
-    ["(Stockholm)", the_base_url.format(region="Stockholm", timestamp='1695336795677')],
-    ["(Zurich)", the_base_url.format(region="Zurich", timestamp='1695336817871')],
-}
 
 def convert(url, region_name):
     response = requests.get(url)
     data_info = response.json()
-
     data = data_info.get("regions", {})
-    data = data['EU (Frankfurt)']
-    
+    region_name = region_name.replace('Europe', 'EU')
+    data = data[region_name]
     if response.status_code == 200:
         instances = []
         for instance_name, instance_attributes in data.items():
-            instance = {
-                'Instance Name': instance_name,
-                'Rate Code': instance_attributes.get('rateCode', ''),
-                'Price': instance_attributes.get('price', ''),
-                'Location': instance_attributes.get('Location', ''),
-                'Instance Family': instance_attributes.get('Instance Family', ''),
-                'vCPU': instance_attributes.get('vCPU', ''),
-                'Memory': instance_attributes.get('Memory', ''),
-                'Storage': instance_attributes.get('Storage', ''),
-                'Network Performance': instance_attributes.get('Network Performance', ''),
-                'Operating System': instance_attributes.get('Operating System', ''),
-                'Pre Installed S/W': instance_attributes.get('Pre Installed S/W', ''),
-                'License Model': instance_attributes.get('License Model', ''),
-            }
+            instance = {'Instance Name': instance_name}
+            for i in tablesitems['instance_attributes_get_items']:
+                instance.update({i: instance_attributes.get(i, '')})
             instances.append(instance)
-
         return instances
     else:
         return None
@@ -68,6 +40,7 @@ def insert_data(sql, conn, parameters=[]):
     cur.execute(sql, parameters)
     conn.commit()
     cur.close()
+
 
 def select_data(sql, conn, parameters=[]):
     cur = conn.cursor()
@@ -85,8 +58,9 @@ def select_data(sql, conn, parameters=[]):
             parameters["instance_id"] = result[0]
 
     conn.commit()
-    
+
     cur.close()
+
 
 def save_data(instance_name, instance_attributes, region_name, conn):
     # Extract data from instance_attributes
@@ -131,18 +105,17 @@ def save_data(instance_name, instance_attributes, region_name, conn):
             select_data(sql_query, conn, parameters)
 
 
-def fetch_data(region_name, url , conn):
+def fetch_data(region_name, url, conn):
     data = convert(url, region_name)
 
     if data:
         for instance in data:
-            save_data(instance['Instance Name'], instance, region_name , conn)
+            save_data(instance['Instance Name'], instance, region_name, conn)
     else:
         return None
 
 
 def main():
-    # in develop
     try:
         conn = psycopg2.connect(
             host=DB_ENDPOINT,
@@ -152,13 +125,15 @@ def main():
             password=DB_PASSWORD
         )
 
-        for region_name, url in REGION_URLS:
-            fetch_data(region_name, url, conn)
-
-        conn.close()
+        for i in tablesitems['URLS_RE']:
+            region_name_fun = "Europe (" + i[0] + ")"
+            region_URL_fun = tablesitems['long_url'][0] + i[0] + tablesitems['long_url'][1] + i[1]
+            fetch_data(region_name_fun, region_URL_fun, conn)
+            conn.close()
 
     except Exception as e:
-        print(f"Error: {e}")
+        print("Error: {e}".format(e=e))
+
 
 if __name__ == "__main__":
     main()
