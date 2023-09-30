@@ -7,7 +7,7 @@ import requests
 
 
 with open('urls_and_table.json', 'r+') as f:
-    tablesitems = json.load(f)
+    tables_items = json.load(f)
 
 
 def convert(url, region_name):
@@ -20,7 +20,7 @@ def convert(url, region_name):
         instances = []
         for instance_name, instance_attributes in data.items():
             instance = {'Instance Name': instance_name}
-            for i in tablesitems['instance_attributes_get_items']:
+            for i in tables_items['instance_attributes_get_items']:
                 instance.update({i: instance_attributes.get(i, '')})
             instances.append(instance)
         return instances
@@ -112,10 +112,11 @@ def main():
     conn = sqlite3.connect('test.db')
     print("Opened database successfully")
 
-    for i in tablesitems['URLS_RE']:
-        region_name_fun = "Europe (" + i[0] + ")"
-        region_URL_fun = tablesitems['long_url'][0] + i[0] + tablesitems['long_url'][1] + i[1]
-        fetch_data(region_name_fun, region_URL_fun, conn)
+    [url_prefix, url_suffix] = tables_items['long_url']
+    for [region_name, timestamp] in tables_items['URLS_RE']:
+        region_name_fun = "Europe (" + region_name + ")"
+        region_url_fun = url_prefix + region_name + url_suffix + timestamp
+        fetch_data(region_name_fun, region_url_fun, conn)
         conn.close()
 
 
