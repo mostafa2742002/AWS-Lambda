@@ -59,23 +59,39 @@ def save_data(instance_name, instance_attributes, region_name, conn):
         "instance_id": None
     }
 
+    # sql_statements = {
+    #     "insert_region_sql": "INSERT INTO regions (region_id , region_long_name) VALUES (:instance_id , :region_name) ON DUPLICATE KEY UPDATE region_long_name = :region_name",
+    #     "insert_os_sql": "INSERT INTO operating_systems (operating_system_id	 , operating_system_name) VALUES (:instance_id , :os_name) ON DUPLICATE KEY UPDATE operating_system_name = :os_name",
+    #     "insert_vcpu_sql": "INSERT INTO vcpu_cores (vcpu_id , core_count) VALUES (:instance_id , :core_count) ON DUPLICATE KEY UPDATE core_count = :core_count",
+    #     "select_region_sql": "SELECT region_id FROM regions WHERE region_long_name = :region_name",
+    #     "select_os_sql": "SELECT operating_system_id FROM operating_systems WHERE operating_system_name = :os_name ORDER BY operating_system_id DESC LIMIT 1",
+    #     "select_vcpu_sql": "SELECT vcpu_id FROM vcpu_cores WHERE core_count = :core_count",
+    #     "insert_instance_sql": "INSERT INTO ec2_instances (instance_id , vcpu_id, memory, storage, network_performance, operating_system_id, instance_name) VALUES (:instance_id , :vcpu_id, :memory, :storage, :network_performance, :operating_system_id, :instance_name) ON DUPLICATE KEY UPDATE vcpu_id = :vcpu_id, memory = :memory, storage = :storage, network_performance = :network_performance, operating_system_id = :operating_system_id, instance_name = :instance_name",
+    #     "select_instance_sql": "SELECT instance_id FROM ec2_instances WHERE instance_name = :instance_name",
+    #     "insert_region_instance_sql": "INSERT INTO region_instances (instance_id , region_id, instance_id, price_per_hour) VALUES (:instance_id , :region_id, :instance_id, :price) ON DUPLICATE KEY UPDATE region_id = :region_id, instance_id = :instance_id, price_per_hour = :price"
+    # }
+
     sql_statements = {
-        "insert_region_sql": "INSERT INTO regions (region_long_name) VALUES (:region_name)",
-        "insert_os_sql": "INSERT INTO operating_systems (operating_system_name) VALUES (:os_name)",
-        "insert_vcpu_sql": "INSERT INTO vcpu_cores (core_count) VALUES (:core_count)",
-        "select_region_sql": "SELECT region_id FROM regions WHERE region_long_name = :region_name",
-        "select_os_sql": "SELECT operating_system_id FROM operating_systems WHERE operating_system_name = :os_name ORDER BY operating_system_id DESC LIMIT 1",
-        "select_vcpu_sql": "SELECT vcpu_id FROM vcpu_cores WHERE core_count = :core_count",
-        "insert_instance_sql": "INSERT INTO ec2_instances (vcpu_id, memory, storage, network_performance, operating_system_id, instance_name) VALUES (:vcpu_id, :memory, :storage, :network_performance, :operating_system_id, :instance_name)",
-        "select_instance_sql": "SELECT instance_id FROM ec2_instances WHERE instance_name = :instance_name",
-        "insert_region_instance_sql": "INSERT INTO region_instances (region_id, instance_id, price_per_hour) VALUES (:region_id, :instance_id, :price)"
+    "insert_region_sql": "INSERT OR REPLACE INTO regions (region_id, region_long_name) VALUES (:instance_id, :region_name)",
+    "insert_os_sql": "INSERT OR REPLACE INTO operating_systems (operating_system_id	, operating_system_name) VALUES (:instance_id, :os_name)",
+    "insert_vcpu_sql": "INSERT OR REPLACE INTO vcpu_cores (vcpu_id, core_count) VALUES (:instance_id, :core_count)",
+    "select_region_sql": "SELECT region_id FROM regions WHERE region_long_name = :region_name",
+    "select_os_sql": "SELECT operating_system_id FROM operating_systems WHERE operating_system_name = :os_name ORDER BY operating_system_id DESC LIMIT 1",
+    "select_vcpu_sql": "SELECT vcpu_id FROM vcpu_cores WHERE core_count = :core_count",
+    "insert_instance_sql": "INSERT OR REPLACE INTO ec2_instances (instance_id, vcpu_id, memory, storage, network_performance, operating_system_id, instance_name) VALUES (:instance_id, :vcpu_id, :memory, :storage, :network_performance, :operating_system_id, :instance_name)",
+    "select_instance_sql": "SELECT instance_id FROM ec2_instances WHERE instance_name = :instance_name",
+    "insert_region_instance_sql": "INSERT OR REPLACE INTO region_instances (instance_id, region_id, price_per_hour) VALUES (:instance_id, :region_id, :price)"
     }
 
+    select_data("SELECT instance_id FROM ec2_instances WHERE instance_name = :instance_name", conn, parameters)
+    
     for sql_key, sql_query in sql_statements.items():
         if sql_key.startswith("insert"):
             insert_data(sql_query, conn, parameters)
         elif sql_key.startswith("select"):
             select_data(sql_query, conn, parameters)
+    
+
 
 
 def insert_data(sql, conn, parameters=[]):
