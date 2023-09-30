@@ -1,7 +1,16 @@
 import requests
-import json
 import psycopg2
-import concurrent.futures
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+DB_NAME = os.getenv("DB_NAME")
+DB_ENDPOINT = os.getenv("DB_ENDPOINT")
+DB_PORT = os.getenv("DB_PORT")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 # Constants for database connection and URLs
 DB_NAME = 'ec2_instances'
@@ -13,14 +22,14 @@ DB_PASSWORD = 'awsproject123'
 # Define URL templates for different regions
 the_base_url = "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/EU%20{region}/Linux/index.json?timestamp={timestamp}"
 REGION_URLS = {
-    ["(Frankfurt)" , the_base_url.format(region="Frankfurt", timestamp='1695336606682')],
-    ["(Ireland)" , the_base_url.format(region="Ireland", timestamp='1695336640824')],
-    ["(London)" , the_base_url.format(region="London", timestamp='1695336671834')],
-    ["(Milan)" , the_base_url.format(region="Milan", timestamp='1695336709113')],
-    ["(Paris)" , the_base_url.format(region="Paris", timestamp='1695336734334')],
-    ["(Spain)" , the_base_url.format(region="Spain", timestamp='1695336756525')],
-    ["(Stockholm)" , the_base_url.format(region="Stockholm", timestamp='1695336795677')],
-    ["(Zurich)" , the_base_url.format(region="Zurich", timestamp='1695336817871')],
+    ["(Frankfurt)", the_base_url.format(region="Frankfurt", timestamp='1695336606682')],
+    ["(Ireland)", the_base_url.format(region="Ireland", timestamp='1695336640824')],
+    ["(London)", the_base_url.format(region="London", timestamp='1695336671834')],
+    ["(Milan)", the_base_url.format(region="Milan", timestamp='1695336709113')],
+    ["(Paris)", the_base_url.format(region="Paris", timestamp='1695336734334')],
+    ["(Spain)", the_base_url.format(region="Spain", timestamp='1695336756525')],
+    ["(Stockholm)", the_base_url.format(region="Stockholm", timestamp='1695336795677')],
+    ["(Zurich)", the_base_url.format(region="Zurich", timestamp='1695336817871')],
 }
 
 def convert(url, region_name):
