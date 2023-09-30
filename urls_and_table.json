@@ -1,0 +1,29 @@
+{
+    "instance_attributes_get_items": [
+        "rateCode",
+        "price",
+        "Location",
+        "Instance Family",
+        "vCPU",
+        "Memory",
+        "Storage",
+        "Network Performance",
+        "Operating System",
+        "Pre Installed S/W",
+        "License Model"
+    ],
+    "URLS_RE": [
+        ["Frankfurt", "1695336606682"],
+        ["Ireland", "1695336640824"],
+        ["London", "1695336671834"],
+        ["Milan", "1695336709113"],
+        ["Paris", "1695336734334"],
+        ["Spain", "1695336756525"],
+        ["Stockholm", "1695336795677"],
+        ["Zurich", "1695336817871"]
+    ],
+    "long_url": [
+        "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/EU%20(",
+        ")/Linux/index.json?timestamp="
+    ]
+}
