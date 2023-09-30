@@ -3,9 +3,6 @@ import sqlite3
 
 import requests
 
-# import boto3
-
-
 with open('urls_and_table.json', 'r+') as f:
     tables_items = json.load(f)
 
@@ -117,8 +114,9 @@ def main():
         region_name_fun = "Europe (" + region_name + ")"
         region_url_fun = url_prefix + region_name + url_suffix + timestamp
         fetch_data(region_name_fun, region_url_fun, conn)
-        conn.close()
+    conn.close()
 
 
 if __name__ == "__main__":
     main()
+
