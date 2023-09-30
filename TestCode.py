@@ -2,40 +2,27 @@ import select
 import sqlite3  
 import requests
 import json
-import boto3
+#import boto3
 import concurrent.futures
 
 
-REGION_URLS = {
-    ("Europe (Frankfurt)", "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/EU%20(Frankfurt)/Linux/index.json?timestamp=1695336606682"): None
-}
+with open('urls_and_table.json', 'r+') as f:
+     tablesitems= json.load(f)
+
 
 def convert(url, region_name):
     response = requests.get(url)
     data_info = response.json()
-
     data = data_info.get("regions", {})
-    data = data['EU (Frankfurt)']
-    
+    region_name = region_name.replace('Europe', 'EU')
+    data = data[region_name] 
     if response.status_code == 200:
         instances = []
         for instance_name, instance_attributes in data.items():
-            instance = {
-                'Instance Name': instance_name,
-                'Rate Code': instance_attributes.get('rateCode', ''),
-                'Price': instance_attributes.get('price', ''),
-                'Location': instance_attributes.get('Location', ''),
-                'Instance Family': instance_attributes.get('Instance Family', ''),
-                'vCPU': instance_attributes.get('vCPU', ''),
-                'Memory': instance_attributes.get('Memory', ''),
-                'Storage': instance_attributes.get('Storage', ''),
-                'Network Performance': instance_attributes.get('Network Performance', ''),
-                'Operating System': instance_attributes.get('Operating System', ''),
-                'Pre Installed S/W': instance_attributes.get('Pre Installed S/W', ''),
-                'License Model': instance_attributes.get('License Model', ''),
-            }
+            instance = { 'Instance Name': instance_name}
+            for i in tablesitems['instance_attributes_get_items']:
+              instance.update( {i : instance_attributes.get(i, '')} )
             instances.append(instance)
-
         return instances
     else:
         return None
@@ -57,7 +44,7 @@ def save_data(instance_name, instance_attributes, region_name, conn):
     network_performance = instance_attributes.get('Network Performance', '')
     operating_system_name = instance_attributes.get('Operating System', '')
     vcpu_cores_count = int(instance_attributes.get('vCPU', ''))
-    price = float(instance_attributes.get('Price', '').replace('$', ''))
+    price = float(instance_attributes.get('price', '').replace('$', ''))
 
     parameters = {
         "region_name": region_name,
@@ -122,9 +109,12 @@ def select_data(sql, conn, parameters=[]):
 def main() :
     conn = sqlite3.connect('test.db')
     print("Opened database successfully")
-
-    fetch_data("Europe (Frankfurt)", "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/EU%20(Frankfurt)/Linux/index.json?timestamp=1695336606682" , conn)
-    conn.close()
+    
+    for i in tablesitems['URLS_RE']:
+        region_name_fun = "Europe (" + i[0] + ")"
+        region_URL_fun = tablesitems['long_url'][0] + i[0] + tablesitems['long_url'][1] + i[1]
+        fetch_data(region_name_fun, region_URL_fun , conn)
+        conn.close()
 
 if __name__ == "__main__":
     main()
