@@ -170,3 +170,6 @@ pyrightconfig.json
 
 # idea
 .idea/
+
+
+test.db

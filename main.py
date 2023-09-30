@@ -124,12 +124,12 @@ def main():
             password=DB_PASSWORD
         )
 
-        url_prefix, url_suffix = tables_items['long_url']
+        [url_prefix, url_suffix] = tables_items['long_url']
         for [region_name, timestamp] in tables_items['URLS_RE']:
             region_name_fun = "Europe (" + region_name + ")"
             region_url_fun = url_prefix + region_name + url_suffix + timestamp
             fetch_data(region_name_fun, region_url_fun, conn)
-            conn.close()
+        conn.close()
 
     except Exception as e:
         print("Error: {e}".format(e=e))
