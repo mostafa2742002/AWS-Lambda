@@ -1,6 +1,6 @@
 import requests
 import json
-#import psycopg2
+import psycopg2
 import concurrent.futures
 import os
 from dotenv import load_dotenv
