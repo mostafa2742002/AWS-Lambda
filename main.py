@@ -2,13 +2,16 @@ import requests
 import json
 #import psycopg2
 import concurrent.futures
+import os
+from dotenv import load_dotenv
 
-# Constants for database connection and URLs
-DB_NAME = 'ec2_instances'
-DB_ENDPOINT = 'free-tier-database.c5x2u38ouo1m.eu-north-1.rds.amazonaws.com'
-DB_PORT = 5432
-DB_USER = 'admin'
-DB_PASSWORD = 'awsproject123'
+load_dotenv() 
+
+DB_NAME=os.getenv("DB_NAME")
+DB_ENDPOINT=os.getenv("DB_ENDPOINT") 
+DB_PORT=os.getenv("DB_PORT")
+DB_USER=os.getenv("DB_USER")
+DB_PASSWORD=os.getenv("DB_PASSWORD")
 
 with open('urls_and_table.json', 'r+') as f:
      tablesitems= json.load(f)
