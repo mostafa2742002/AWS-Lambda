@@ -1,13 +1,13 @@
-import select
-import sqlite3  
-import requests
 import json
-#import boto3
-import concurrent.futures
+import sqlite3
+
+import requests
+
+# import boto3
 
 
 with open('urls_and_table.json', 'r+') as f:
-     tablesitems= json.load(f)
+    tablesitems = json.load(f)
 
 
 def convert(url, region_name):
@@ -15,27 +15,28 @@ def convert(url, region_name):
     data_info = response.json()
     data = data_info.get("regions", {})
     region_name = region_name.replace('Europe', 'EU')
-    data = data[region_name] 
+    data = data[region_name]
     if response.status_code == 200:
         instances = []
         for instance_name, instance_attributes in data.items():
-            instance = { 'Instance Name': instance_name}
+            instance = {'Instance Name': instance_name}
             for i in tablesitems['instance_attributes_get_items']:
-              instance.update( {i : instance_attributes.get(i, '')} )
+                instance.update({i: instance_attributes.get(i, '')})
             instances.append(instance)
         return instances
     else:
         return None
 
 
-def fetch_data(region_name, url , conn):
+def fetch_data(region_name, url, conn):
     data = convert(url, region_name)
 
     if data:
         for instance in data:
-            save_data(instance['Instance Name'], instance, region_name , conn)
+            save_data(instance['Instance Name'], instance, region_name, conn)
     else:
         return None
+
 
 def save_data(instance_name, instance_attributes, region_name, conn):
     # Extract data from instance_attributes
@@ -102,6 +103,7 @@ def insert_data(sql, conn, parameters=[]):
     conn.commit()
     cur.close()
 
+
 def select_data(sql, conn, parameters=[]):
     cur = conn.cursor()
     cur.execute(sql, parameters)
@@ -118,19 +120,20 @@ def select_data(sql, conn, parameters=[]):
             parameters["instance_id"] = result[0]
 
     conn.commit()
-    
+
     cur.close()
 
 
-def main() :
+def main():
     conn = sqlite3.connect('test.db')
     print("Opened database successfully")
-    
+
     for i in tablesitems['URLS_RE']:
         region_name_fun = "Europe (" + i[0] + ")"
         region_URL_fun = tablesitems['long_url'][0] + i[0] + tablesitems['long_url'][1] + i[1]
-        fetch_data(region_name_fun, region_URL_fun , conn)
+        fetch_data(region_name_fun, region_URL_fun, conn)
         conn.close()
+
 
 if __name__ == "__main__":
     main()

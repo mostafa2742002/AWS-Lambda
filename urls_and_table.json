@@ -22,8 +22,8 @@
         ["Stockholm", "1695336795677"],
         ["Zurich", "1695336817871"]
     ],
-    "long_url": [
-        "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/EU%20(",
-        ")/Linux/index.json?timestamp="
-    ]
+    "long_url": {
+        "url_prefix": "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/EU%20(",
+        "url_suffix": ")/Linux/index.json?timestamp="
+    }
 }
