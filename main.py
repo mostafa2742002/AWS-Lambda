@@ -1,6 +1,7 @@
 import json
 import os
-import psycopg2
+import mysql.connector
+from mysql.connector import Error
 import requests
 from dotenv import load_dotenv
 
@@ -116,7 +117,8 @@ def fetch_data(region_name, url, conn):
 
 def main():
     try:
-        conn = psycopg2.connect(
+
+        conn = mysql.connector.connect(
             host=DB_ENDPOINT,
             port=DB_PORT,
             database=DB_NAME,
