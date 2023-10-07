@@ -1,54 +1,38 @@
-import requests
 import json
-import psycopg2
-import concurrent.futures
+import os
+import mysql.connector
+from mysql.connector import Error
+import requests
+from dotenv import load_dotenv
 
-# Constants for database connection and URLs
-DB_NAME = 'ec2_instances'
-DB_ENDPOINT = 'free-tier-database.c5x2u38ouo1m.eu-north-1.rds.amazonaws.com'
-DB_PORT = 5432
-DB_USER = 'admin'
-DB_PASSWORD = 'awsproject123'
+# Load environment variables
+load_dotenv()
 
-# Define URL templates for different regions
-the_base_url = "https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/EU%20{region}/Linux/index.json?timestamp={timestamp}"
-REGION_URLS = {
-    ["(Frankfurt)" , the_base_url.format(region="Frankfurt", timestamp='1695336606682')],
-    ["(Ireland)" , the_base_url.format(region="Ireland", timestamp='1695336640824')],
-    ["(London)" , the_base_url.format(region="London", timestamp='1695336671834')],
-    ["(Milan)" , the_base_url.format(region="Milan", timestamp='1695336709113')],
-    ["(Paris)" , the_base_url.format(region="Paris", timestamp='1695336734334')],
-    ["(Spain)" , the_base_url.format(region="Spain", timestamp='1695336756525')],
-    ["(Stockholm)" , the_base_url.format(region="Stockholm", timestamp='1695336795677')],
-    ["(Zurich)" , the_base_url.format(region="Zurich", timestamp='1695336817871')],
-}
+DB_NAME = os.getenv("DB_NAME")
+DB_ENDPOINT = os.getenv("DB_ENDPOINT")
+DB_PORT = os.getenv("DB_PORT")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+
+#with open('urls_and_table.json', 'r') as file:
+#    tables_items = json.load(file)
+
 
 def convert(url, region_name):
+    print("Convert URL = " + url)
     response = requests.get(url)
-    data_info = response.json()
-
-    data = data_info.get("regions", {})
-    data = data['EU (Frankfurt)']
     
+    data_info = response.json()
+    data = data_info.get("regions", {})
+    region_name = region_name.replace('Europe', 'EU')
+    data = data[region_name]
     if response.status_code == 200:
         instances = []
         for instance_name, instance_attributes in data.items():
-            instance = {
-                'Instance Name': instance_name,
-                'Rate Code': instance_attributes.get('rateCode', ''),
-                'Price': instance_attributes.get('price', ''),
-                'Location': instance_attributes.get('Location', ''),
-                'Instance Family': instance_attributes.get('Instance Family', ''),
-                'vCPU': instance_attributes.get('vCPU', ''),
-                'Memory': instance_attributes.get('Memory', ''),
-                'Storage': instance_attributes.get('Storage', ''),
-                'Network Performance': instance_attributes.get('Network Performance', ''),
-                'Operating System': instance_attributes.get('Operating System', ''),
-                'Pre Installed S/W': instance_attributes.get('Pre Installed S/W', ''),
-                'License Model': instance_attributes.get('License Model', ''),
-            }
+            instance = {'Instance Name': instance_name}
+            for i in ["rateCode", "price", "Location", "Instance Family", "vCPU", "Memory", "Storage", "Network Performance", "Operating System", "Pre Installed S/W", "License Model"]:
+                instance.update({i: instance_attributes.get(i, '')})
             instances.append(instance)
-
         return instances
     else:
         return None
@@ -60,81 +44,82 @@ def insert_data(sql, conn, parameters=[]):
     conn.commit()
     cur.close()
 
-def select_data(sql, conn, parameters=[]):
+
+def get_value(sql, conn, parameters=[]):
     cur = conn.cursor()
     cur.execute(sql, parameters)
-    result = cur.fetchone()
-    if result:
-        if sql.startswith("SELECT region_id"):
-            parameters["region_id"] = result[0]
-        elif sql.startswith("SELECT operating_system_id"):
-            # we want the last element in the tuple
-            parameters["operating_system_id"] = result[0]
-        elif sql.startswith("SELECT vcpu_id"):
-            parameters["vcpu_id"] = result[0]
-        elif sql.startswith("SELECT instance_id"):
-            parameters["instance_id"] = result[0]
-
-    conn.commit()
+    result = cur.fetchone()[0]
     
     cur.close()
+    return result
 
-def save_data(instance_name, instance_attributes, region_name, conn):
-    # Extract data from instance_attributes
-    memory = float(instance_attributes.get('Memory', '').replace(' GiB', ''))
-    storage = instance_attributes.get('Storage', '')
-    network_performance = instance_attributes.get('Network Performance', '')
-    operating_system_name = instance_attributes.get('Operating System', '')
-    vcpu_cores_count = int(instance_attributes.get('vCPU', ''))
-    price = float(instance_attributes.get('Price', '').replace('$', ''))
+def save_region_data(region_name, conn):
+    print("Saving Region Data for region_name = " + region_name)
+    parameters =(region_name, region_name, region_name)
+    sql_query = "INSERT INTO regions (region_long_name, region_short_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE region_long_name = %s"
+    insert_data(sql_query, conn, parameters)
+    print("Finished saving region data")
 
-    parameters = {
-        "region_name": region_name,
-        "os_name": operating_system_name,
-        "core_count": vcpu_cores_count,
-        "instance_name": instance_name,
-        "memory": memory,
-        "storage": storage,
-        "network_performance": network_performance,
-        "price": price,
-        "region_id": None,
-        "operating_system_id": None,
-        "vcpu_id": None,
-        "instance_id": None
-    }
+def save_os_data(operating_system_name, conn):
+    print("Saving OS Data for OS Name = " + operating_system_name)
+    parameters = (operating_system_name , operating_system_name)
+    sql_query = "INSERT INTO operating_systems (operating_system_name) VALUES (%s) ON DUPLICATE KEY UPDATE operating_system_name = %s"
+    insert_data(sql_query, conn, parameters)
 
-    sql_statements = {
-        "insert_region_sql": "INSERT INTO regions (region_long_name) VALUES (:region_name)",
-        "insert_os_sql": "INSERT INTO operating_systems (operating_system_name) VALUES (:os_name)",
-        "insert_vcpu_sql": "INSERT INTO vcpu_cores (core_count) VALUES (:core_count)",
-        "select_region_sql": "SELECT region_id FROM regions WHERE region_long_name = :region_name",
-        "select_os_sql": "SELECT operating_system_id FROM operating_systems WHERE operating_system_name = :os_name ORDER BY operating_system_id DESC LIMIT 1",
-        "select_vcpu_sql": "SELECT vcpu_id FROM vcpu_cores WHERE core_count = :core_count",
-        "insert_instance_sql": "INSERT INTO ec2_instances (vcpu_id, memory, storage, network_performance, operating_system_id, instance_name) VALUES (:vcpu_id, :memory, :storage, :network_performance, :operating_system_id, :instance_name)",
-        "select_instance_sql": "SELECT instance_id FROM ec2_instances WHERE instance_name = :instance_name",
-        "insert_region_instance_sql": "INSERT INTO region_instances (region_id, instance_id, price_per_hour) VALUES (:region_id, :instance_id, :price)"
-    }
+def save_vcpu_data(core_count, conn):
+    print("Saving VCPU Data for Core Count = " + core_count)
+    parameters = (core_count, core_count)
+    sql_query = "INSERT INTO vcpu_cores (core_count) VALUES (%s) ON DUPLICATE KEY UPDATE core_count = %s"
+    insert_data(sql_query, conn, parameters)
 
-    for sql_key, sql_query in sql_statements.items():
-        if sql_key.startswith("insert"):
-            insert_data(sql_query, conn, parameters)
-        elif sql_key.startswith("select"):
-            select_data(sql_query, conn, parameters)
+def save_ec2_instance_data(instance, conn):
+    print("Saving EC2 Instances Data for instance name = " + instance['Instance Name'])
+    parameters = (instance['vCPU'],) 
+    vcpu_query = "SELECT vcpu_core_id FROM vcpu_cores WHERE core_count = %s"
+    vcpu_id = get_value(vcpu_query, conn, parameters)
+    parameters = (instance['Operating System'],)
+    os_query = "SELECT operating_system_id FROM operating_systems WHERE operating_system_name = %s"
+    os_id = get_value(os_query, conn, parameters)
+    
+    parameters = (vcpu_id, instance['Memory'], instance['Storage'], instance['Network Performance'], os_id, instance['Instance Name'], vcpu_id, instance['Memory'], instance['Storage'], instance['Network Performance'], os_id, instance['Instance Name']) 
+    sql_query = "INSERT INTO ec2_instances (vcpu_core_id, memory, storage, network_performance, operating_system_id, instance_name) VALUES (%s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE vcpu_core_id = %s, memory = %s, storage = %s, network_performance = %s, operating_system_id = %s , instance_name = %s"
+    insert_data(sql_query, conn, parameters)
 
+def save_prices(instance_name, region_name, price, conn):
+    print("Saving Prices for region = " + region_name)
+    parameters = (region_name,) 
+    region_id_query = "select region_id from regions where region_long_name = %s"
+    region_id = get_value(region_id_query, conn, parameters)
 
-def fetch_data(region_name, url , conn):
+    parameters = (instance_name,)
+    instance_query = "select instance_id from ec2_instances where instance_name = %s"
+    instance_id = get_value(instance_query, conn, parameters)
+
+    parameters = (region_id, instance_id, price, price)
+    region_instances_query = "insert into region_instances(region_id, instance_id, price_per_hour) values(%s, %s, %s) on duplicate key update price_per_hour = %s "
+    insert_data(region_instances_query, conn, parameters)
+    
+
+def fetch_data(region_name, url, conn):
+    print("Fetch Data for Region = " + region_name)
     data = convert(url, region_name)
 
     if data:
         for instance in data:
-            save_data(instance['Instance Name'], instance, region_name , conn)
+            print (instance['Operating System'] + " " + instance['vCPU'])
+            save_region_data(region_name, conn)
+            save_os_data(instance['Operating System'], conn)
+            save_vcpu_data(instance['vCPU'], conn) 
+            save_ec2_instance_data(instance, conn)
+            save_prices(instance['Instance Name'], region_name, instance['price'], conn)
     else:
         return None
 
 
-def main():
+def web_scraping_engine():
     try:
-        conn = psycopg2.connect(
+
+        conn = mysql.connector.connect(
             host=DB_ENDPOINT,
             port=DB_PORT,
             database=DB_NAME,
@@ -142,13 +127,18 @@ def main():
             password=DB_PASSWORD
         )
 
-        for region_name, url in REGION_URLS:
-            fetch_data(region_name, url, conn)
+        print("Connection Succeeded!")
 
+        [url_prefix, url_suffix] = ["https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/EU%20(", ")/Linux/index.json?timestamp="]
+        for [region_name, timestamp] in [["Frankfurt", "1695336606682"], ["Ireland", "1695336640824"], ["London", "1695336671834"], ["Milan", "1695336709113"], ["Paris", "1695336734334"], ["Spain", "1695336756525"], ["Stockholm", "1695336795677"], ["Zurich", "1695336817871"]]:
+            region_name_fun = "Europe (" + region_name + ")"
+            region_url_fun = url_prefix + region_name + url_suffix + timestamp
+            fetch_data(region_name_fun, region_url_fun, conn)
         conn.close()
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(e)
 
-if __name__ == "__main__":
-    main()
+
+def lambda_handler(event , context):
+    web_scraping_engine()
