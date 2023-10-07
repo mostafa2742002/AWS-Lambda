@@ -36,7 +36,3 @@ This repository hosts the codebase for an AWS Lambda function designed to scrape
 **Usage**
 
 This Lambda function can be integrated into various data collection and processing pipelines. It provides a flexible and scalable solution for automating the retrieval and storage of data from the web.
-
-For any questions or recommendations, please feel free to contact the project owner.
-
-*Note: This README is a template for a project involving AWS Lambda, web scraping, and data storage in Amazon RDS. The actual implementation and code may vary based on project requirements.*
